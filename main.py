@@ -8,6 +8,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from torch.utils.data import Dataset, DataLoader
 from models.ddpm import DDPM, ContextUnet
+from models.vae import VariationalAutoencoder
 import matplotlib.pyplot as plt
 
 class MIMICDATASET(Dataset):
@@ -36,12 +37,57 @@ class MIMICDATASET(Dataset):
         sample = self.x[idx]
         sample_y = self.y[idx]
         return sample, sample_y[0]
+    
+# def generate(vae, diffusion, n_sample):
+#     ddpm.load_state_dict(torch.load("ehrmodel_0.pth"))
+#     ddpm.eval()
+#     with torch.no_grad():
+#         n_sample = 3000
+#         x_gen, x_gen_store = ddpm.sample(n_sample, (10,), device, label=[0], guide_w=0.5)
 
-# hardcoding these here
+#     df = pd.DataFrame(x_gen[:,:-1].cpu().numpy(), columns=x_train.columns[:-1])
+#     fig, axes = plt.subplots(9, 1, figsize=(8, 25))
+#     for i, c in enumerate(num_feat):
+#         f = df[[c]].plot(kind='kde',ax=axes[i])
+#         f = x_train[[c]].plot(kind='kde',color='red',ax=axes[i])
+
+def generate(vae, ddpm, column_name, n_sample, n_feat):
+    ddpm.load_state_dict(torch.load("ehrmodel.pth"))
+    ddpm.eval()
+    #####################################
+    #### Load model and optimizer #######
+    #####################################
+
+    with torch.no_grad():
+        z_gen, x_gen_store = ddpm.sample(n_sample, (n_feat,), device, label=[0], guide_w=0.5)
+        x_gen = vae.decode(z_gen)
+    df = pd.DataFrame(x_gen.cpu().numpy(), columns=column_name)
+    return df
+
+# def evaluate():
+
+#     # Load synthetic data
+#     gen_samples = np.load(os.path.join(args.MODELPATH, "synthetic.npy"), allow_pickle=True)
+
+#     # Load real data
+#     real_samples = dataset_train_object.return_data()[0:gen_samples.shape[0], :]
+
+#     # Dimenstion wise probability
+#     prob_real = np.mean(real_samples, axis=0)
+#     prob_syn = np.mean(gen_samples, axis=0)
+
+#     colors = (0, 0, 0)
+#     plt.scatter(prob_real, prob_syn, c=colors, alpha=0.5)
+#     x_max = max(np.max(prob_real), np.max(prob_syn))
+#     x = np.linspace(0, x_max + 0.1, 1000)
+#     plt.plot(x, x, linestyle='-', color='k')  # solid
+#     plt.title('Scatter plot p')
+#     plt.xlabel('x')
+#     plt.ylabel('y')
+#     plt.show()
+
+
 if __name__ == "__main__":
-
-
-
     batch_size =  512
     device = torch.device("cuda")
     dataset_train_object = MIMICDATASET(x_path='m_train.csv',y_path='my_train.csv', train=True, transform=False)
@@ -66,7 +112,7 @@ if __name__ == "__main__":
 
     # # optionally load a model
     # # ddpm.load_state_dict(torch.load("./data/diffusion_outputs/ddpm_unet01_mnist_9.pth"))
-    vae_tmp = torch.load('vae_tmp.pt')
+    vae_tmp = torch.load('vae_tmp.pt').to(device)
     vae_tmp.eval()
 
 
@@ -83,9 +129,11 @@ if __name__ == "__main__":
         loss_ema = None
         for x, c in pbar:
             optim.zero_grad()
+                        
             x = x.to(device)
+            z, _ =  vae_tmp.encode(x)
             c = c.to(device)
-            loss = ddpm(x, c)
+            loss = ddpm(z, c)
             loss.backward()
             if loss_ema is None:
                 loss_ema = loss.item()
@@ -94,15 +142,11 @@ if __name__ == "__main__":
             pbar.set_description(f"loss: {loss_ema:.4f}")
             optim.step()
 
-    # torch.save(ddpm.state_dict(), f"ehrmodel_{ep}.pth")
-    # ddpm.load_state_dict(torch.load("ehrmodel_0.pth"))
-    # ddpm.eval()
-    # with torch.no_grad():
-    #     n_sample = 3000
-    #     x_gen, x_gen_store = ddpm.sample(n_sample, (10,), device, label=[0], guide_w=0.5)
+    torch.save(ddpm.state_dict(), f"ehrmodel.pth")
 
-    # df = pd.DataFrame(x_gen[:,:-1].cpu().numpy(), columns=x_train.columns[:-1])
-    # fig, axes = plt.subplots(9, 1, figsize=(8, 25))
-    # for i, c in enumerate(num_feat):
-    #     f = df[[c]].plot(kind='kde',ax=axes[i])
-    #     f = x_train[[c]].plot(kind='kde',color='red',ax=axes[i])
+    ddpm = DDPM(nn_model=ContextUnet(in_channels=1, n_feat=n_feat, n_classes=2), \
+                betas=(1e-4, 0.02), n_T=n_T, device=device, drop_prob=0.1)
+    ddpm.to(device)
+    column_name = dataset_train_object.ehr.columns
+    df = generate(vae_tmp, ddpm, column_name, n_sample=10, n_feat=n_feat)
+
