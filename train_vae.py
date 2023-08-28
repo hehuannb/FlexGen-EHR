@@ -24,12 +24,15 @@ class MIMICDATASET(Dataset):
         self.label['los_7'] = self.label['los_7'].astype('int8')
         self.sta = pd.read_csv(x_s_path,index_col=[0,1,2], header=[0,1])
         self.sta.columns = self.sta.columns.droplevel()
+        self.sta = pd.get_dummies(self.sta, columns = ['diagnosis'])
+        self.sta = pd.get_dummies(self.sta, columns = ['ethnicity'])
+        self.sta = pd.get_dummies(self.sta, columns = ['admission_type'])
         self.xt = torch.from_numpy(self.ehr.values).to(torch.float32)
         self.xs = torch.from_numpy(self.sta.values).to(torch.float32)
         self.y = torch.from_numpy(self.label.values)
 
-        self.sampleSize = self.x.shape[0]
-        self.featureSize = self.x.shape[1]
+        self.sampleSize = self.xs.shape[0]
+        self.featureSize = self.xs.shape[1]
 
     def return_data(self):
         return self.ehr, self.label
@@ -38,15 +41,33 @@ class MIMICDATASET(Dataset):
         return len(self.ehr)
 
     def __getitem__(self, idx):
-        sample = self.x[idx]
+        sample = self.xt[idx]
+        stat = self.xs[idx]
         sample_y = self.y[idx]
-        return sample, sample_y
+        return sample, stat, sample_y
 
-def train_vae(net, dataloader,  epochs=10):
+def train_vae_stat(net, dataloader,  epochs=10):
     optim = torch.optim.Adam(net.parameters())
 
     for i in range(epochs):
-        for batch,_ in dataloader:
+        for _, batch,_ in dataloader:
+            print(batch.shape)
+            batch = batch.to(device)
+            optim.zero_grad()
+            x,mu,logvar = model(batch)
+            loss = vae_loss_fn(batch, x, mu, logvar)
+            loss.backward()
+            optim.step()
+            print(loss.item())
+        # evaluate(validation_losses, net, test_dataloader, vae=True, title=f'VAE - Epoch {i}')
+    torch.save(net, 'vae_stat.pt')
+
+def train_vae_tmp(net, dataloader,  epochs=10):
+    optim = torch.optim.Adam(net.parameters())
+
+    for i in range(epochs):
+        for batch, _,_ in dataloader:
+            print(batch.shape)
             batch = batch.to(device)
             optim.zero_grad()
             x,mu,logvar = model(batch)
@@ -58,17 +79,7 @@ def train_vae(net, dataloader,  epochs=10):
     torch.save(net, 'vae_tmp.pt')
 
 
-# def test():
-#     model.eval()
-#     test_loss = 0
-#     with torch.no_grad():
-#         for i, data in enumerate(test_loader):
-#             data = data.to(device)
-#             recon_batch, mu, logvar = model(data)
-#             test_loss += loss_function(recon_batch, data, mu, logvar).item()
 
-#     test_loss /= len(test_loader.dataset)
-#     print('====> Test set loss: {:.4f}'.format(test_loss))
 
 
 if __name__ == "__main__":
@@ -89,16 +100,27 @@ if __name__ == "__main__":
     test_loader = DataLoader(dataset_test_object, batch_size=batch_size,
                                 shuffle=False, num_workers=1, drop_last=True, sampler=samplerRandom)
 
-    random_samples, y = next(iter(test_loader))
-    feature_dim = random_samples.shape[1]
+
+
+
+    tmp_samples, sta_samples, y = next(iter(train_loader))
+    feature_dim = sta_samples.shape[1]
 
     model = VariationalAutoencoder(feature_dim).to(device)
     optimizer = optim.Adam(model.parameters(), lr=1e-3)
 
+    train_vae_stat(model, train_loader)
+    # vae_sta = torch.load('vae_sta.pt')
+    # vae_sta.eval()
+    
+    feature_dim = tmp_samples.shape[1]
 
-    train_vae(model, train_loader)
+    model = VariationalAutoencoder(feature_dim).to(device)
+    optimizer = optim.Adam(model.parameters(), lr=1e-3)
 
-    vae_tmp = torch.load('vae_tmp.pt')
-    vae_tmp.eval()
+    train_vae_tmp(model, train_loader)
+
+    # vae_tmp = torch.load('vae_tmp.pt')
+    # vae_tmp.eval()
 
 
