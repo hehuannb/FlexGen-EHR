@@ -3,6 +3,7 @@ import torch.utils.data
 from torch import nn, optim
 from torch.nn import functional as F
 import os
+import seaborn as sns
 import numpy as np
 from torch.utils.data import DataLoader, Dataset
 import matplotlib.pyplot as plt
@@ -90,7 +91,7 @@ if __name__ == "__main__":
                                         y_path='my_train.csv', train=True, transform=False)
     samplerRandom = torch.utils.data.sampler.RandomSampler(data_source=dataset_train_object, replacement=True)
     train_loader = DataLoader(dataset_train_object, batch_size=batch_size,
-                                shuffle=False, num_workers=2, drop_last=True, sampler=samplerRandom)
+                                shuffle=False, num_workers=2, drop_last=False)
 
     ### Test data loader ####
 
@@ -98,29 +99,61 @@ if __name__ == "__main__":
                                        y_path='my_test.csv',  train=False, transform=False)
     samplerRandom = torch.utils.data.sampler.RandomSampler(data_source=dataset_test_object, replacement=True)
     test_loader = DataLoader(dataset_test_object, batch_size=batch_size,
-                                shuffle=False, num_workers=1, drop_last=True, sampler=samplerRandom)
+                                shuffle=False, num_workers=1, drop_last=False)
 
 
 
 
     tmp_samples, sta_samples, y = next(iter(train_loader))
-    feature_dim = sta_samples.shape[1]
+    feature_dim_s = sta_samples.shape[1]
 
-    model = VariationalAutoencoder(feature_dim).to(device)
+    feature_dim_t = tmp_samples.shape[1]
+
+    model = VariationalAutoencoder(feature_dim_s).to(device)
     optimizer = optim.Adam(model.parameters(), lr=1e-3)
-
     train_vae_stat(model, train_loader)
-    # vae_sta = torch.load('vae_sta.pt')
-    # vae_sta.eval()
-    
-    feature_dim = tmp_samples.shape[1]
+    vae_sta = torch.load('vae_stat.pt')
+    vae_sta.eval()
 
-    model = VariationalAutoencoder(feature_dim).to(device)
+    model = VariationalAutoencoder(feature_dim_t).to(device)
     optimizer = optim.Adam(model.parameters(), lr=1e-3)
-
     train_vae_tmp(model, train_loader)
+    vae_tmp = torch.load('vae_tmp.pt')
+    vae_tmp.eval()
+    x = dataset_train_object.xt.to('cuda').requires_grad_(False)
+    x_recon,mu,logvar = vae_tmp(x)
+    real_prob = np.mean(x.cpu().detach().numpy(), axis=0)
+    fake_prob = np.mean(x_recon.cpu().detach().numpy(), axis=0)
 
-    # vae_tmp = torch.load('vae_tmp.pt')
-    # vae_tmp.eval()
+    x_mask = x[:, dataset_train_object.ehr.columns.get_level_values(1)=='mask']
+    x_mask_fake = x_recon[:, dataset_train_object.ehr.columns.get_level_values(1)=='mask']
+    x_mask_fake[x_mask_fake<0.5] = 0
+    x_mask_fake[x_mask_fake>=0.5] = 1
+    real_prob = np.mean(x_mask.cpu().detach().numpy(), axis=0)
+    fake_prob = np.mean(x_mask_fake.cpu().detach().numpy(), axis=0)
+    plt.scatter(real_prob, fake_prob)
+    plt.xlim([0, 1])
+    plt.ylim([0, 1])
 
+    x_nmask = x[:, dataset_train_object.ehr.columns.get_level_values(1)!='mask']
+    x_nmask_fake = x_recon[:, dataset_train_object.ehr.columns.get_level_values(1)!='mask']
+    real_prob = np.mean(x_nmask.cpu().detach().numpy(), axis=0)
+    fake_prob = np.mean(x_nmask_fake.cpu().detach().numpy(), axis=0)
+    plt.scatter(real_prob, fake_prob)
+    plt.xlim([0, 1])
+    plt.ylim([0, 1])
+
+    # sns.set_style("whitegrid", {'grid.linestyle': ' '})
+    # fig, ax = plt.subplots(figsize=(4.2, 3.8))
+    # df = pd.DataFrame({'real': real_prob,  'fake': fake_prob, \
+    #                    "feature": dataset_train_object.ehr.columns.get_level_values(2)})
+    # sns.scatterplot(ax=ax, data=df, x='real', y='fake', hue="feature", s=10, \
+    #                 alpha=0.8, edgecolor='none', legend=None, palette='Paired_r')
+    # sns.lineplot(ax=ax, x=[0, 1], y=[0, 1], linewidth=0.5, color="darkgrey")
+    # ax.set(xlabel="Bernoulli success probability of real data")
+    # ax.set(ylabel="Bernoulli success probability of synthetic data")
+    # ax.xaxis.label.set_size(8)
+    # ax.yaxis.label.set_size(8)
+    # ax.set_xlim([0, 1])
+    # ax.set_ylim([0, 1])
 
