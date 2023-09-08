@@ -3,6 +3,9 @@ import torch.utils.data
 from torch import nn, optim
 from torch.nn import functional as F
 
+
+bce = torch.nn.L1Loss()
+
 class VariationalAutoencoder(nn.Module):
     def __init__(self, input_size):
         super(VariationalAutoencoder, self).__init__()
@@ -27,7 +30,7 @@ class VariationalAutoencoder(nn.Module):
         
     def decode(self, z):
         z = self.relu(self.bn3(self.fc3(z)))
-        return self.relu(self.fc4(z))
+        return self.fc4(z)
         
     def reparameterize(self, mu, logvar):
         std = torch.exp(0.5 *logvar)
@@ -40,12 +43,23 @@ class VariationalAutoencoder(nn.Module):
         x = self.decode(z)
         return x, mu, logvar
 
+def dice_coeff(pred, target):
+    smooth = 1.
+    num = pred.size(0)
+    m1 = pred.view(num, -1).float()  # Flatten
+    m2 = target.view(num, -1).float()  # Flatten
+    intersection = (m1 * m2).sum().float()
+
+    return (2. * intersection + smooth) / (m1.sum() + m2.sum() + smooth)
 
 # Reconstruction + KL divergence losses summed over all elements and batch
-def vae_loss_fn(x, recon_x, mu, logvar):
-    BCE = F.mse_loss(recon_x, x, reduction='mean')
-
-    # see Appendix B from VAE paper:
+def vae_loss_fn(x, recon_x, mu, logvar, numeric=True):
+    # if numeric:
+    BCE = F.mse_loss(recon_x, x, reduction='sum')/9000
+    # else:
+        # recon_x[recon_x<0.5] = 0
+        # recon_x[recon_x>=0.5] = 1
+        # BCE = bce(recon_x, x)
     # Kingma and Welling. Auto-Encoding Variational Bayes. ICLR, 2014
     # https://arxiv.org/abs/1312.6114
     # 0.5 * sum(1 + log(sigma^2) - mu^2 - sigma^2)\

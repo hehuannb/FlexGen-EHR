@@ -1,13 +1,6 @@
 from __future__ import print_function, division
-import copy, math, os, pickle, time, pandas as pd, numpy as np, scipy.stats as ss
-
-from sklearn.linear_model import LogisticRegression
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import average_precision_score, roc_auc_score, accuracy_score, f1_score
-
-import torch, torch.utils.data as utils, torch.nn as nn, torch.nn.functional as F, torch.optim as optim
-from torch.autograd import Variable
-from torch.nn.parameter import Parameter
+import pandas as pd, numpy as np, scipy.stats as ss
+import torch
 
 def simple_imputer(df):
     idx = pd.IndexSlice
@@ -44,56 +37,56 @@ SEED              = 1
 ID_COLS           = ['subject_id', 'hadm_id', 'icustay_id']
 np.random.seed(SEED)
 torch.manual_seed(SEED)
-# data_full_lvl2 = pd.read_hdf(DATA_FILEPATH, 'vitals_labs')
+data_full_lvl2 = pd.read_hdf(DATA_FILEPATH, 'vitals_labs')
 statics        = pd.read_hdf(DATA_FILEPATH, 'patients')
 
-# Ys = statics[statics.max_hours > WINDOW_SIZE + GAP_TIME][['mort_hosp', 'mort_icu', 'los_icu']]
-# Ys['los_3'] = Ys['los_icu'] > 3
-# Ys['los_7'] = Ys['los_icu'] > 7
-# Ys.drop(columns=['los_icu'], inplace=True)
-# Ys.astype(float)
+Ys = statics[statics.max_hours > WINDOW_SIZE + GAP_TIME][['mort_hosp', 'mort_icu', 'los_icu']]
+Ys['los_3'] = Ys['los_icu'] > 3
+Ys['los_7'] = Ys['los_icu'] > 7
+Ys.drop(columns=['los_icu'], inplace=True)
+Ys.astype(float)
 
-# lvl2  = data_full_lvl2[
-#     (data_full_lvl2.index.get_level_values('icustay_id').isin(set(Ys.index.get_level_values('icustay_id')))) &
-#     (data_full_lvl2.index.get_level_values('hours_in') < WINDOW_SIZE)]
-# # raw.columns = raw.columns.droplevel(level=['label', 'LEVEL1', 'LEVEL2'])
+lvl2  = data_full_lvl2[
+    (data_full_lvl2.index.get_level_values('icustay_id').isin(set(Ys.index.get_level_values('icustay_id')))) &
+    (data_full_lvl2.index.get_level_values('hours_in') < WINDOW_SIZE)]
+# raw.columns = raw.columns.droplevel(level=['label', 'LEVEL1', 'LEVEL2'])
 
-# train_frac, test_frac = 0.7, 0.3
-# lvl2_subj_idx, Ys_subj_idx = [df.index.get_level_values('subject_id') for df in (lvl2, Ys)]
-# lvl2_subjects = set(lvl2_subj_idx)
-# # assert lvl2_subjects == set(Ys_subj_idx), "Subject ID pools differ!"
-
-
-# np.random.seed(SEED)
-# subjects, N = np.random.permutation(list(lvl2_subjects)), len(lvl2_subjects)
-# N_train, N_test = int(train_frac * N), int(test_frac * N)
-# train_subj = subjects[:N_train]
-# test_subj  = subjects[N_train:]
-
-# [(lvl2_train, lvl2_test), (Ys_train, Ys_test)] = [
-#     [df[df.index.get_level_values('subject_id').isin(s)] for s in (train_subj,test_subj)] \
-#     for df in (lvl2, Ys)]
-
-# idx = pd.IndexSlice
-# lvl2_means, lvl2_stds = lvl2_train.loc[:, idx[:,'mean']].mean(axis=0), lvl2_train.loc[:, idx[:,'mean']].std(axis=0)
+train_frac, test_frac = 0.7, 0.3
+lvl2_subj_idx, Ys_subj_idx = [df.index.get_level_values('subject_id') for df in (lvl2, Ys)]
+lvl2_subjects = set(lvl2_subj_idx)
+# assert lvl2_subjects == set(Ys_subj_idx), "Subject ID pools differ!"
 
 
-# lvl2_train.loc[:, idx[:,'mean']] = (lvl2_train.loc[:, idx[:,'mean']] - lvl2_means)/lvl2_stds
-# lvl2_test.loc[:, idx[:,'mean']] = (lvl2_test.loc[:, idx[:,'mean']] - lvl2_means)/lvl2_stds
+np.random.seed(SEED)
+subjects, N = np.random.permutation(list(lvl2_subjects)), len(lvl2_subjects)
+N_train, N_test = int(train_frac * N), int(test_frac * N)
+train_subj = subjects[:N_train]
+test_subj  = subjects[N_train:]
 
-# lvl2_train, lvl2_test = [
-#     simple_imputer(df) for df in (lvl2_train, lvl2_test)
-# ]
-# lvl2_flat_train, lvl2_flat_test = [
-#     df.pivot_table(index=['subject_id', 'hadm_id', 'icustay_id'], columns=['hours_in']) for df in (
-#         lvl2_train, lvl2_test
-#     )
-# ]
+[(lvl2_train, lvl2_test), (Ys_train, Ys_test)] = [
+    [df[df.index.get_level_values('subject_id').isin(s)] for s in (train_subj,test_subj)] \
+    for df in (lvl2, Ys)]
 
-# lvl2_flat_train.to_csv('m_train.csv',index=True)
-# lvl2_flat_test.to_csv('m_test.csv',index=True)
-# Ys_train.to_csv('my_train.csv',index=True)
-# Ys_test.to_csv('my_test.csv',index=True)
+idx = pd.IndexSlice
+lvl2_means, lvl2_stds = lvl2_train.loc[:, idx[:,'mean']].mean(axis=0), lvl2_train.loc[:, idx[:,'mean']].std(axis=0)
+
+
+lvl2_train.loc[:, idx[:,'mean']] = (lvl2_train.loc[:, idx[:,'mean']] - lvl2_means)/lvl2_stds
+lvl2_test.loc[:, idx[:,'mean']] = (lvl2_test.loc[:, idx[:,'mean']] - lvl2_means)/lvl2_stds
+
+lvl2_train, lvl2_test = [
+    simple_imputer(df) for df in (lvl2_train, lvl2_test)
+]
+lvl2_flat_train, lvl2_flat_test = [
+    df.pivot_table(index=['subject_id', 'hadm_id', 'icustay_id'], columns=['hours_in']) for df in (
+        lvl2_train, lvl2_test
+    )
+]
+
+lvl2_flat_train.to_csv('m_train.csv',index=True)
+lvl2_flat_test.to_csv('m_test.csv',index=True)
+Ys_train.to_csv('my_train.csv',index=True)
+Ys_test.to_csv('my_test.csv',index=True)
 
 
 tmp_train = pd.read_csv('m_train.csv',index_col=[0,1,2], header=[0,1,2])

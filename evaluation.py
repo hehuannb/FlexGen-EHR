@@ -33,13 +33,13 @@ def cal_rmse(real_prob, fake_prob):
     return float("{:.4f}".format(sqrt(mean_squared_error(real_prob, fake_prob)))) 
     
 
-print("evaluate VAE")
-dataset_train_object = MIMICDATASET(x_path='m_train.csv',x_s_path='ms_train.csv',\
-                                    y_path='my_train.csv', train=True, transform=False)
-vae_tmp = torch.load('vae_tmp.pt').to('cuda')
-vae_tmp.eval()
-x = dataset_train_object.xt.to('cuda')
-x_recon,mu,logvar = vae_tmp(x)
+# print("evaluate VAE")
+# dataset_train_object = MIMICDATASET(x_path='m_train.csv',x_s_path='ms_train.csv',\
+#                                     y_path='my_train.csv', train=True, transform=False)
+# vae_tmp = torch.load('vae_tmp.pt').to('cuda')
+# vae_tmp.eval()
+# x = dataset_train_object.xt.to('cuda')
+# x_recon,mu,logvar = vae_tmp(x)
 
 # vae_sta = torch.load('vae_sta.pt')
 # vae_sta.eval()
