@@ -153,9 +153,9 @@ if __name__ == "__main__":
     vae_sta = torch.load('vae_stat.pt')
     vae_sta.eval()
 
-    # model = VariationalAutoencoder(feature_dim_t).to(device)
-    # optimizer = optim.Adam(model.parameters(), lr=1e-3)
-    # train_vae_tmp(model, train_loader,epochs=60)
+    model2 = VariationalAutoencoder(feature_dim_t).to(device)
+    optimizer = optim.Adam(model.parameters(), lr=1e-3)
+    train_vae_tmp(model2, train_loader,epochs=60)
     vae_tmp = torch.load('vae_tmp.pt')
     vae_tmp.eval()
     

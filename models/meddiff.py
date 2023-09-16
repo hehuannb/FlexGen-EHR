@@ -48,7 +48,7 @@ class MedDiff(nn.Module):
                 # z = torch.concat([zt, zs],dim=1)
                 ms, ss = self.svae.encode(xs)
                 zs = self.reparameterize(ms, ss)
-                mt, st = self.svae.encode(xt)
+                mt, st = self.tvae.encode(xt)
                 zt = self.reparameterize(mt, st)
                 z = torch.concat([zt, zs],dim=1)
                 c = c.to(device)
