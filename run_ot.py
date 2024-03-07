@@ -13,6 +13,7 @@ torch.manual_seed(SEED)
 torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = False
 np.random.seed(SEED)
+from tqdm import tqdm
 
 class MIMICDATASET(Dataset):
     def __init__(self, x_t,x_s, y, train=None, transform=None):
@@ -75,19 +76,9 @@ if __name__ == '__main__':
     svae = torch.load('vae_stat.pt')
     svae.eval()
     tvae.eval()
-    n_epoch = 1
-    n_T = 50 
-    device = "cuda"
-    n_classes = 2
-    n_feat = 256  
-    lrate = 1e-4
-    save_model = True
-    w = 0.1
-    ddpm = DDPM(nn_model=ContextUnet(in_channels=1, n_feat=n_feat, n_classes=2), \
-                betas=(1e-4, 0.02), n_T=n_T, device=device, drop_prob=0.1)
-    ddpm.to(device)
-    trainer = MedDiff(tvae, svae, ddpm,train_loader,epochs=n_epoch,\
-                      model_path='Synthetic_MIMIC/diff.pt')
-    # trainer.train_epoch()
 
-    trainer.generate(5000, 0)
+
+    ms, ss =svae.encode(x_s)
+    zs = svae.reparameterize(ms, ss)
+    mt, st = tvae.encode(x_t)
+    zt = tvae.reparameterize(mt, st)

@@ -31,6 +31,7 @@ class MedDiff(nn.Module):
         self.s_path = synthetic_staticpath
         self.t_path = synthetic_temporalpath
 
+
     def train_epoch(self):
         for ep in range(self.n_epoch):
             self.diff.train()
@@ -47,9 +48,9 @@ class MedDiff(nn.Module):
                 # zs, _ =  self.svae.encode(xs)
                 # z = torch.concat([zt, zs],dim=1)
                 ms, ss = self.svae.encode(xs)
-                zs = self.reparameterize(ms, ss)
+                zs = self.svae.reparameterize(ms, ss)
                 mt, st = self.tvae.encode(xt)
-                zt = self.reparameterize(mt, st)
+                zt = self.tvae.reparameterize(mt, st)
                 z = torch.concat([zt, zs],dim=1)
                 c = c.to(device)
                 loss_d = self.diff(z, c)
@@ -59,6 +60,7 @@ class MedDiff(nn.Module):
                 # xs_gen = self.svae.decode(z_s)
                 pbar.set_description(f"loss: {loss_d.item():.4f}")
                 self.dopt.step()
+
         torch.save(self.diff, self.m_path)
 
     def generate(self, num_sample, label, eval=True):
@@ -82,6 +84,3 @@ class MedDiff(nn.Module):
 
         np.save(self.s_path, s_syn)
         np.save(self.t_path, t_syn)
-        # Eval fidelaity and privacy
-        if eval:
-            print("not implemented")
