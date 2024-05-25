@@ -4,7 +4,7 @@ from torch import nn, optim
 from torch.nn import functional as F
 from torch import nn, optim
 from tqdm import tqdm
-from models.vae import vae_loss_fn
+from models.cvae import vae_loss_fn
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt

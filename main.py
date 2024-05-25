@@ -1,4 +1,4 @@
-from models.vae import VariationalAutoencoder, vae_loss_fn
+from models.cvae import VariationalAutoencoder, vae_loss_fn
 from models.ddpm import DDPM, ContextUnet
 from models.meddiff import MedDiff
 import torch
@@ -15,16 +15,17 @@ torch.backends.cudnn.benchmark = False
 np.random.seed(SEED)
 
 class MIMICDATASET(Dataset):
-    def __init__(self, x_t,x_s, y, train=None, transform=None):
+    def __init__(self, x_t,x_s, ys, yt, train=None, transform=None):
         # Transform
         self.transform = transform
         self.train = train
         self.xt = x_t
         self.xs = x_s
-        self.y = y
+        self.ys = ys
+        self.yt = yt
 
     def return_data(self):
-        return self.xt, self.xs, self.label
+        return self.xt, self.xs, self.ys, self.yt
 
     def __len__(self):
         return len(self.xt)
@@ -32,8 +33,9 @@ class MIMICDATASET(Dataset):
     def __getitem__(self, idx):
         sample = self.xt[idx]
         stat = self.xs[idx]
-        sample_y = self.y[idx]
-        return sample, stat, sample_y
+        sample_ys = self.ys[idx]
+        sample_yt = self.yt[idx]
+        return sample, stat, sample_ys, sample_yt
 
 
 
@@ -58,21 +60,27 @@ if __name__ == '__main__':
     x_t = torch.sparse_coo_tensor(torch.tensor(X['coords']), torch.tensor(X['data'])).to_dense().to(torch.float32)
     x_t = x_t.sum(dim=1).to(torch.float32)
 
-    dataset_train_object = MIMICDATASET(x_t, x_s, torch.tensor(df_pop.ARF_LABEL.values).to(torch.float32),\
+    idx_t = np.random.permutation(np.arange(x_t.shape[0]))[0: int(0.8 * x_t.shape[0])]
+    idx_s = np.random.permutation(np.arange(x_s.shape[0]))[0: int(0.8 * x_s.shape[0])]
+    x_s = x_s[idx_s]
+    x_t = x_t[idx_t]
+    y = torch.tensor(df_pop.ARF_LABEL.values).to(torch.float32)
+    ys, yt = y[idx_s, idx_t]
+    dataset_train_object = MIMICDATASET(x_t, x_s, ys, yt,\
                                          train=True, transform=False)
     train_loader = DataLoader(dataset_train_object, batch_size=batch_size, shuffle=True, \
                               num_workers=1, drop_last=False)
 
     
-    tmp_samples, sta_samples, y = next(iter(train_loader))
+    tmp_samples, sta_samples, _ = next(iter(train_loader))
     feature_dim_s = sta_samples.shape[1]
     feature_dim_t = tmp_samples.shape[1]
 
     svae = VariationalAutoencoder(feature_dim_s).to(device)
 
     tvae = VariationalAutoencoder(feature_dim_t).to(device)
-    tvae = torch.load('vae_tmp.pt')
-    svae = torch.load('vae_stat.pt')
+    tvae = torch.load('saved_models/vae_tmp.pt')
+    svae = torch.load('saved_models/vae_stat.pt')
     svae.eval()
     tvae.eval()
     n_epoch = 1
@@ -88,6 +96,4 @@ if __name__ == '__main__':
     ddpm.to(device)
     trainer = MedDiff(tvae, svae, ddpm,train_loader,epochs=n_epoch,\
                       model_path='Synthetic_MIMIC/diff.pt')
-    # trainer.train_epoch()
-
     trainer.generate(5000, 0)
