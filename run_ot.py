@@ -1,6 +1,6 @@
 from models.cvae import VariationalAutoencoder, vae_loss_fn
 from models.ddpm import DDPM, ContextUnet
-from models.meddiff import MedDiff
+from models.flexgen import flexgen
 import torch
 import numpy as np
 from torch.utils.data import DataLoader, Dataset
@@ -15,7 +15,8 @@ torch.backends.cudnn.benchmark = False
 np.random.seed(SEED)
 from tqdm import tqdm
 import umap
-from ot import Pamona
+from eot import Pamona
+from scipy.linalg import orthogonal_procrustes
 
 class MIMICDATASET(Dataset):
     def __init__(self, x_t,x_s, y, train=None, transform=None):
@@ -80,14 +81,15 @@ if __name__ == '__main__':
     # mt, st = tvae.encode(x_t.to(device))
     # zt = tvae.reparameterize(mt, st)
     idx_t = np.random.permutation(np.arange(zt.shape[0]))[0: int(0.8 * zs.shape[0])]
-    idx_s = np.random.permutation(np.arange(zs.shape[0]))[0: int(0.8 * zs.shape[0])]
+    # idx_s = np.random.permutation(np.arange(zs.shape[0]))[0: int(0.8 * zs.shape[0])]
+    idx_s = idx_t
     zs1 = zs[idx_s]
     zt1 = zt[idx_t]
-    zs = zs1.detach().cpu().numpy().astype(np.float32)[0:5000, :]
-    zt = zt1.detach().cpu().numpy().astype(np.float32)[0:5000, :]
+    zs = zs1.detach().cpu().numpy().astype(np.float32)[0:500, :]
+    zt = zt1.detach().cpu().numpy().astype(np.float32)[0:500, :]
     data = [zs, zt]
-    y = df_pop.ARF_LABEL.values[0:5000]
-    y2 = df_pop.ARF_LABEL.values[0:5000]
+    y = df_pop.ARF_LABEL.values[0:500]
+    y2 = df_pop.ARF_LABEL.values[0:500]
     datatype = [y.astype(np.int32), y2.astype(np.int32)]
     M = []
     n_datasets = len(data)
@@ -97,7 +99,37 @@ if __name__ == '__main__':
             for j in range(len(data[-1])):
                 if datatype[k][i] == datatype[-1][j]:
                     M[k][i][j] = 0.5
-    Pa = Pamona(n_shared=[500], M=M, n_neighbors=5)
+    Pa = Pamona(n_shared=[100], M=M, n_neighbors=5)
     integrated_data, T = Pa.run_Pamona(data)
-    Pa.Visualize(data, integrated_data, datatype=datatype, mode='UMAP')
+    trans = T[0][0:-1, 0:-1]
+    Q, scale = orthogonal_procrustes(zs, zt)
+    print(np.linalg.norm(zs@Q-(zt.T@trans).T))
     
+    # Pa.Visualize(data, integrated_data, datatype=datatype, mode='UMAP')
+
+
+    # transp =T[0][0:-1,0:-1] / np.sum(T[0][0:-1,0:-1] , axis=1)[:, None]
+    # # set nans to 0
+    # transp = np.nan_to_num(transp, nan=0, posinf=0, neginf=0)
+    # # compute transported samples
+    # transp_Xs = np.dot(transp, zs)
+
+    
+    # n_epoch = 1
+    # n_T = 50 
+    # device = "cuda"
+    # n_classes = 2
+    # n_feat = 256  
+    # lrate = 1e-4
+    # save_model = True
+    # w = 0.1
+    # ddpm = DDPM(nn_model=ContextUnet(in_channels=1, n_feat=n_feat, n_classes=2), \
+    #             betas=(1e-4, 0.02), n_T=n_T, device=device, drop_prob=0.1)
+    # ddpm.to(device)
+    # trainer = flexgen(tvae, svae, ddpm,train_loader,epochs=n_epoch,\
+    #                   model_path='Synthetic_MIMIC/diff.pt')
+    # trainer.generate(5000, 0)
+    import matplotlib.pyplot as pl
+    cmap = 'Blues'
+    pl.imshow(T[0][0:-1, 0:-1], cmap=cmap, interpolation='nearest')
+    pl.title('FGW  ($M+C_1,C_2$)')

@@ -1,1 +1,1 @@
-from models.vae import VariationalAutoencoder
+from models.cvae import VariationalAutoencoder

@@ -1,6 +1,6 @@
 from models.cvae import VariationalAutoencoder, vae_loss_fn
 from models.ddpm import DDPM, ContextUnet
-from models.meddiff import MedDiff
+from models.flexgen import flexgen
 import torch
 import numpy as np
 from torch.utils.data import DataLoader, Dataset
@@ -23,6 +23,10 @@ class MIMICDATASET(Dataset):
         self.xs = x_s
         self.ys = ys
         self.yt = yt
+        m = x_s.shape[0]
+        num_miss = 500
+        self.miss_t = np.random.permutation(np.arange(m))[0: num_miss]
+        self.miss_s = np.random.permutation(np.arange(m))[0: num_miss]
 
     def return_data(self):
         return self.xt, self.xs, self.ys, self.yt
@@ -30,9 +34,16 @@ class MIMICDATASET(Dataset):
     def __len__(self):
         return len(self.xt)
 
+
     def __getitem__(self, idx):
-        sample = self.xt[idx]
-        stat = self.xs[idx]
+        if idx in self.miss_t:
+            sample = 0
+        else:
+            sample = self.xt[idx]
+        if idx in self.miss_s:
+            stat = 0
+        else:
+            stat = self.xs[idx]
         sample_ys = self.ys[idx]
         sample_yt = self.yt[idx]
         return sample, stat, sample_ys, sample_yt
@@ -94,6 +105,6 @@ if __name__ == '__main__':
     ddpm = DDPM(nn_model=ContextUnet(in_channels=1, n_feat=n_feat, n_classes=2), \
                 betas=(1e-4, 0.02), n_T=n_T, device=device, drop_prob=0.1)
     ddpm.to(device)
-    trainer = MedDiff(tvae, svae, ddpm,train_loader,epochs=n_epoch,\
+    trainer = flexgen(tvae, svae, ddpm,train_loader,epochs=n_epoch,\
                       model_path='Synthetic_MIMIC/diff.pt')
     trainer.generate(5000, 0)
