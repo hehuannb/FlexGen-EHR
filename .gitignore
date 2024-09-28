@@ -1,0 +1,10 @@
+/MIMIC
+*.h5
+*.pt
+*.csv
+*.pyc
+/FIDDLE_eicu
+/FIDDLE_mimic3
+/olddata
+/Synthetic_MIMIC
+/TEAR
