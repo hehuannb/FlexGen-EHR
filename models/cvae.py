@@ -7,7 +7,7 @@ from torch.nn import functional as F
 bce = torch.nn.BCEWithLogitsLoss()
 
 class VariationalAutoencoder(nn.Module):
-    def __init__(self, input_size, hidden=256,out=64,numerical=True):
+    def __init__(self, input_size, hidden=256,out=128,numerical=True):
         super(VariationalAutoencoder, self).__init__()
         self.fc1 = nn.Linear(input_size+1,hidden)
         self.fc21 = nn.Linear(hidden, out)

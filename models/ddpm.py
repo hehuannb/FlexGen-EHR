@@ -217,6 +217,7 @@ class DDPM(nn.Module):
         self.drop_prob = drop_prob
         self.loss_mse = nn.MSELoss()
 
+
     def forward(self, x, c):
         """
         this method is used in training, so samples t and noise randomly
@@ -230,11 +231,12 @@ class DDPM(nn.Module):
         )  # This is the x_t, which is sqrt(alphabar) x_0 + sqrt(1-alphabar) * eps
         # We should predict the "error term" from this x_t. Loss is what we return.
         # dropout context with some probability
-        context_mask = torch.bernoulli(torch.zeros_like(c)+self.drop_prob).to(self.device)
+        context_mask = torch.bernoulli(torch.zeros_like(c) + self.drop_prob).to(self.device)
+
         # print(noise.shape)
         # return MSE between added noise, and our predicted noise
-        
         return self.loss_mse(noise, self.nn_model(x_t, c, _ts / self.n_T, context_mask))
+
 
     def sample(self, n_sample, size, device, label= 2, guide_w = 0.0):
         # we follow the guidance sampling scheme described in 'Classifier-Free Diffusion Guidance'
